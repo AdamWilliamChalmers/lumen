@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Lumen",
+  "version": "3.5.0",
+  "description": "Cognitive fitness layer for AI — Loop, Drift, Mismatch, and Depth signals without judgment.",
+  "permissions": ["storage"],
+  "host_permissions": ["http://localhost:3000/*"],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chat.openai.com/*",
+        "https://chatgpt.com/*"
+      ],
+      "js": [
+        "adapters/chatgpt.js",
+        "rules.js",
+        "nudges.js",
+        "engine.js",
+        "goals.js",
+        "judge.js",
+        "session.js",
+        "sparkline.js",
+        "widget.js",
+        "content.js"
+      ],
+      "css": ["widget.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -1,0 +1,858 @@
+const LumenWidget = (() => {
+  const SIGNAL_COLORS = {
+    handoff: "#f0a500",
+    loop: "#4caf50",
+    drift: "#f0a500",
+    mismatch: "#8040c0",
+    depth: "#4a9fd4",
+  };
+
+  let popoverOpen = false;
+  let dismissedReconsider = new Set();
+  let activeReconsider = null;
+  let lastEvaluation = null;
+  let fabDrag = { active: false, moved: false, suppressClick: false, pointerId: null, offsetX: 0, offsetY: 0 };
+
+  const OVERLAY_HTML = `
+      <div id="lumen-reconsider" class="lumen-reconsider">
+        <div class="lumen-reconsider-panel lumen-signal-handoff">
+          <div class="lumen-reconsider-kicker" id="lumen-reconsider-kicker">Lumen · hand-off</div>
+          <h2 class="lumen-reconsider-title" id="lumen-reconsider-title">Start with your own version?</h2>
+          <p class="lumen-reconsider-body" id="lumen-reconsider-body"></p>
+          <div id="lumen-reconsider-choices" class="lumen-reconsider-actions">
+            <button type="button" class="lumen-reconsider-btn" id="lumen-reconsider-draft">I'll draft something first</button>
+            <button type="button" class="lumen-reconsider-btn lumen-reconsider-btn--secondary" id="lumen-reconsider-continue">Continue — show AI answer</button>
+          </div>
+          <div id="lumen-reconsider-draft-mode" class="lumen-reconsider-draft-mode lumen-hidden">
+            <textarea id="lumen-reconsider-textarea" class="lumen-reconsider-textarea" placeholder="Your rough draft — even one sentence…"></textarea>
+            <button type="button" class="lumen-reconsider-btn" id="lumen-reconsider-submit">Submit my draft + ask AI</button>
+          </div>
+        </div>
+      </div>`;
+
+  function ensureRoot() {
+    if (document.getElementById("lumen-root")) {
+      ensureReconsiderShell();
+      return;
+    }
+    const root = document.createElement("div");
+    root.id = "lumen-root";
+    root.innerHTML = `
+      <div id="lumen-fab">
+        <span id="lumen-fab-dot"></span>
+        <span id="lumen-fab-wordmark">Lumen</span>
+        <span id="lumen-fab-score">0</span>
+      </div>
+      <div id="lumen-popover">
+        <div class="lumen-popover-title">Session score</div>
+        <div class="lumen-popover-sparkline" id="lumen-sparkline"></div>
+        <div class="lumen-popover-stat"><span>Messages</span><span class="lumen-popover-stat-value" id="lumen-stat-messages">0</span></div>
+        <div class="lumen-popover-stat"><span>Hand-off</span><span class="lumen-popover-stat-value" id="lumen-stat-handoff">0</span></div>
+        <div class="lumen-popover-stat"><span>Loop</span><span class="lumen-popover-stat-value" id="lumen-stat-loop">0</span></div>
+        <div class="lumen-popover-stat"><span>Drift</span><span class="lumen-popover-stat-value" id="lumen-stat-drift">0</span></div>
+        <div class="lumen-popover-stat"><span>Mismatch</span><span class="lumen-popover-stat-value" id="lumen-stat-mismatch">0</span></div>
+        <div class="lumen-popover-stat"><span>Depth</span><span class="lumen-popover-stat-value" id="lumen-stat-depth">0</span></div>
+        <label class="lumen-popover-label">Visibility</label>
+        <select id="lumen-mode-select" class="lumen-popover-select">
+          <option value="ghost">Ghost</option>
+          <option value="ambient">Ambient</option>
+          <option value="active">Active</option>
+          <option value="focus">Focus</option>
+        </select>
+        <label class="lumen-popover-label">Protected goals</label>
+        <textarea id="lumen-goals-input" class="lumen-popover-goals" placeholder="One goal per line"></textarea>
+        <label class="lumen-popover-label">Focus goal (this session)</label>
+        <input id="lumen-focus-input" class="lumen-popover-focus" type="text" placeholder="Today I'm trying to…" />
+        <label class="lumen-popover-check">
+          <input type="checkbox" id="lumen-llm-judge" />
+          LLM second opinion (gray cases)
+        </label>
+        <p class="lumen-popover-hint" id="lumen-judge-hint">Runs when rules are uncertain · needs web app at localhost:3000</p>
+        <p class="lumen-popover-hint">Drag the Lumen pill to move it out of the way.</p>
+        <button class="lumen-popover-reset" id="lumen-reset-session">Reset session</button>
+        <div class="lumen-popover-divider"></div>
+        <div class="lumen-popover-title">Why last flag</div>
+        <p class="lumen-popover-why" id="lumen-last-why">No flags yet this session.</p>
+        <div class="lumen-popover-divider"></div>
+        <div class="lumen-popover-title">This week</div>
+        <div class="lumen-popover-digest" id="lumen-digest"></div>
+      </div>
+      ${OVERLAY_HTML}
+      <div id="lumen-onboarding" class="lumen-onboarding">
+        <div class="lumen-onboarding-panel">
+          <div class="lumen-onboarding-step" data-step="1">
+            <h2>Set up Lumen</h2>
+            <p>What do you mainly use AI for?</p>
+            <div class="lumen-onboarding-options" id="lumen-use-cases">
+              <label><input type="checkbox" value="Research" /> Research</label>
+              <label><input type="checkbox" value="Writing" /> Writing</label>
+              <label><input type="checkbox" value="Coding" /> Coding</label>
+              <label><input type="checkbox" value="Learning" /> Learning</label>
+              <label><input type="checkbox" value="Admin" /> Admin</label>
+              <label><input type="checkbox" value="Creative work" /> Creative work</label>
+              <label><input type="checkbox" value="Work tasks" /> Work tasks</label>
+            </div>
+          </div>
+          <div class="lumen-onboarding-step lumen-hidden" data-step="2">
+            <h2>Anything to protect?</h2>
+            <p>Optional. Lumen only flags mismatch against goals you set yourself.</p>
+            <textarea id="lumen-onboarding-goals" placeholder="I want to write my own first drafts.&#10;I want to understand the code, not just copy it."></textarea>
+          </div>
+          <div class="lumen-onboarding-step lumen-hidden" data-step="3">
+            <h2>How visible should Lumen be?</h2>
+            <select id="lumen-onboarding-mode">
+              <option value="ambient">Ambient — quiet strips (default)</option>
+              <option value="ghost">Ghost — digest only, no in-session signals</option>
+              <option value="active">Active — all four signals + cards</option>
+              <option value="focus">Focus — declare a session goal</option>
+            </select>
+            <input id="lumen-onboarding-focus" class="lumen-hidden" type="text" placeholder="Today I'm trying to…" />
+          </div>
+          <div class="lumen-onboarding-actions">
+            <button id="lumen-onboarding-skip" class="lumen-onboarding-btn lumen-onboarding-btn--ghost">Skip</button>
+            <button id="lumen-onboarding-next" class="lumen-onboarding-btn">Continue</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(root);
+    bindRootEvents();
+    bindReconsiderEvents();
+  }
+
+  function ensureReconsiderShell() {
+    const existing = document.getElementById("lumen-reconsider");
+    if (existing) {
+      if (!document.getElementById("lumen-reconsider-submit")) {
+        existing.remove();
+        reconsiderEventsBound = false;
+      } else {
+        return;
+      }
+    }
+    document.getElementById("lumen-root")?.insertAdjacentHTML("beforeend", OVERLAY_HTML);
+    bindReconsiderEvents();
+  }
+
+  function bindRootEvents() {
+    bindFabDrag();
+
+    document.getElementById("lumen-fab")?.addEventListener("click", (event) => {
+      if (fabDrag.suppressClick) {
+        fabDrag.suppressClick = false;
+        return;
+      }
+      event.stopPropagation();
+      togglePopover();
+    });
+
+    document.getElementById("lumen-reset-session")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      lastEvaluation = null;
+      LumenSession.reset();
+      updateBadge();
+      closePopover();
+    });
+
+    document.getElementById("lumen-mode-select")?.addEventListener("change", (event) => {
+      LumenGoals.save({ mode: event.target.value });
+    });
+
+    document.getElementById("lumen-goals-input")?.addEventListener("change", (event) => {
+      const goals = event.target.value.split("\n").map((line) => line.trim()).filter(Boolean);
+      LumenGoals.save({ protectedGoals: goals });
+    });
+
+    document.getElementById("lumen-focus-input")?.addEventListener("change", (event) => {
+      LumenGoals.save({ focusGoal: event.target.value.trim() || null });
+    });
+
+    document.getElementById("lumen-llm-judge")?.addEventListener("change", (event) => {
+      LumenGoals.save({ llmJudgeEnabled: event.target.checked });
+    });
+
+    document.addEventListener("mousedown", (event) => {
+      if (!popoverOpen) return;
+      const root = document.getElementById("lumen-root");
+      if (root && !root.contains(event.target)) closePopover();
+    });
+
+    bindOnboardingEvents();
+  }
+
+  const FAB_MARGIN = 12;
+
+  function clampFabPosition(left, top, fab) {
+    const width = fab.offsetWidth || 120;
+    const height = fab.offsetHeight || 40;
+    return {
+      left: Math.min(Math.max(FAB_MARGIN, left), window.innerWidth - width - FAB_MARGIN),
+      top: Math.min(Math.max(FAB_MARGIN, top), window.innerHeight - height - FAB_MARGIN),
+    };
+  }
+
+  function applyFabPosition() {
+    const fab = document.getElementById("lumen-fab");
+    if (!fab) return;
+    const pos = LumenGoals.get().fabPosition;
+    if (pos && typeof pos.left === "number" && typeof pos.top === "number") {
+      const clamped = clampFabPosition(pos.left, pos.top, fab);
+      fab.style.left = `${clamped.left}px`;
+      fab.style.top = `${clamped.top}px`;
+      fab.style.right = "auto";
+      fab.style.bottom = "auto";
+    } else {
+      fab.style.left = "";
+      fab.style.top = "";
+      fab.style.right = "";
+      fab.style.bottom = "";
+    }
+  }
+
+  function bindFabDrag() {
+    const fab = document.getElementById("lumen-fab");
+    if (!fab || fab.dataset.dragBound) return;
+    fab.dataset.dragBound = "1";
+
+    fab.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      const rect = fab.getBoundingClientRect();
+      fabDrag = {
+        active: true,
+        moved: false,
+        suppressClick: false,
+        pointerId: event.pointerId,
+        offsetX: event.clientX - rect.left,
+        offsetY: event.clientY - rect.top,
+        startX: event.clientX,
+        startY: event.clientY,
+      };
+      fab.classList.add("lumen-fab--dragging");
+      fab.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    });
+
+    fab.addEventListener("pointermove", (event) => {
+      if (!fabDrag.active || event.pointerId !== fabDrag.pointerId) return;
+      const moved = Math.hypot(event.clientX - fabDrag.startX, event.clientY - fabDrag.startY);
+      if (moved > 4) fabDrag.moved = true;
+      if (!fabDrag.moved) return;
+
+      const next = clampFabPosition(
+        event.clientX - fabDrag.offsetX,
+        event.clientY - fabDrag.offsetY,
+        fab
+      );
+      fab.style.left = `${next.left}px`;
+      fab.style.top = `${next.top}px`;
+      fab.style.right = "auto";
+      fab.style.bottom = "auto";
+      if (popoverOpen) positionPopover();
+    });
+
+    fab.addEventListener("pointerup", (event) => {
+      if (!fabDrag.active || event.pointerId !== fabDrag.pointerId) return;
+      fab.classList.remove("lumen-fab--dragging");
+      fab.releasePointerCapture(event.pointerId);
+      if (fabDrag.moved) {
+        const left = parseInt(fab.style.left, 10);
+        const top = parseInt(fab.style.top, 10);
+        LumenGoals.save({ fabPosition: { left, top } });
+        fabDrag.suppressClick = true;
+      }
+      fabDrag.active = false;
+    });
+
+    fab.addEventListener("pointercancel", () => {
+      fab.classList.remove("lumen-fab--dragging");
+      fabDrag.active = false;
+    });
+
+    window.addEventListener("resize", () => {
+      const pos = LumenGoals.get().fabPosition;
+      if (!pos) return;
+      applyFabPosition();
+      if (popoverOpen) positionPopover();
+    });
+  }
+
+  let reconsiderEventsBound = false;
+
+  function bindReconsiderEvents() {
+    if (reconsiderEventsBound) return;
+    reconsiderEventsBound = true;
+    document.getElementById("lumen-reconsider-draft")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      showOverlayDraftMode();
+    });
+    document.getElementById("lumen-reconsider-continue")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      closeSignalOverlay(true, "continue");
+    });
+    document.getElementById("lumen-reconsider-submit")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      submitOverlayDraft();
+    });
+  }
+
+  function resetOverlayPanel() {
+    document.getElementById("lumen-reconsider-choices")?.classList.remove("lumen-hidden");
+    document.getElementById("lumen-reconsider-draft-mode")?.classList.add("lumen-hidden");
+    const textarea = document.getElementById("lumen-reconsider-textarea");
+    if (textarea) textarea.value = "";
+  }
+
+  function showOverlayDraftMode() {
+    if (!activeReconsider) return;
+    LumenSession.logLoopBreak("draft-first");
+    document.getElementById("lumen-reconsider-choices")?.classList.add("lumen-hidden");
+    document.getElementById("lumen-reconsider-draft-mode")?.classList.remove("lumen-hidden");
+    document.getElementById("lumen-reconsider-textarea")?.focus();
+  }
+
+  function submitOverlayDraft() {
+    if (!activeReconsider) return;
+    const draft = document.getElementById("lumen-reconsider-textarea")?.value.trim();
+    if (!draft) return;
+    const combined = LumenNudges.buildCombinedPrompt(draft, activeReconsider.originalPrompt);
+    activeReconsider.adapter.setChatInputText(combined);
+    LumenSession.logLoopBreak("draft-submitted");
+    closeSignalOverlay(false, "draft-submitted");
+  }
+
+  function closeSignalOverlay(showAi, action) {
+    if (!activeReconsider) return;
+    dismissedReconsider.add(activeReconsider.msgId);
+    if (action === "continue") {
+      LumenSession.logOverlayBypassed(activeReconsider.overlayType);
+    }
+    if (showAi) activeReconsider.hidden.show();
+    else activeReconsider.hidden.stop();
+    document.getElementById("lumen-reconsider")?.classList.remove("lumen-reconsider--open");
+    resetOverlayPanel();
+    activeReconsider = null;
+  }
+
+  function showSignalOverlay(msg, evaluation, adapter) {
+    if (dismissedReconsider.has(msg.id)) return;
+    if (activeReconsider?.msgId === msg.id) return;
+    if (!evaluation.overlayType) return;
+
+    ensureRoot();
+    resetOverlayPanel();
+
+    const copy =
+      evaluation.overlayType === "handoff"
+        ? LumenNudges.getHandOffOverlayCopy(evaluation.taskType || "general")
+        : LumenNudges.getLoopOverlayCopy();
+
+    const panel = document.querySelector(".lumen-reconsider-panel");
+    panel?.classList.toggle("lumen-signal-handoff", evaluation.overlayType === "handoff");
+    panel?.classList.toggle("lumen-signal-loop", evaluation.overlayType === "loop");
+
+    document.getElementById("lumen-reconsider-kicker").textContent = copy.kicker;
+    document.getElementById("lumen-reconsider-title").textContent = copy.title;
+    document.getElementById("lumen-reconsider-body").textContent = copy.body;
+    document.getElementById("lumen-reconsider-draft").textContent = copy.draftLabel;
+    document.getElementById("lumen-reconsider-continue").textContent = copy.continueLabel;
+    document.getElementById("lumen-reconsider-submit").textContent = copy.submitLabel;
+    document.getElementById("lumen-reconsider-textarea")?.setAttribute("placeholder", copy.draftPlaceholder);
+
+    if (activeReconsider) {
+      activeReconsider.hidden.show();
+    }
+
+    activeReconsider = {
+      msgId: msg.id,
+      overlayType: evaluation.overlayType,
+      originalPrompt: msg.text,
+      adapter,
+      hidden: keepAssistantHidden(adapter, msg.el),
+    };
+
+    document.getElementById("lumen-reconsider")?.classList.add("lumen-reconsider--open");
+  }
+
+  function bindOnboardingEvents() {
+    let step = 1;
+    const panel = document.getElementById("lumen-onboarding");
+    const nextBtn = document.getElementById("lumen-onboarding-next");
+    const skipBtn = document.getElementById("lumen-onboarding-skip");
+    const modeSelect = document.getElementById("lumen-onboarding-mode");
+    const focusInput = document.getElementById("lumen-onboarding-focus");
+
+    modeSelect?.addEventListener("change", () => {
+      focusInput.classList.toggle("lumen-hidden", modeSelect.value !== "focus");
+    });
+
+    skipBtn?.addEventListener("click", () => {
+      LumenGoals.skipOnboarding();
+      panel.classList.remove("lumen-onboarding--open");
+    });
+
+    nextBtn?.addEventListener("click", () => {
+      if (step < 3) {
+        panel.querySelector(`[data-step="${step}"]`)?.classList.add("lumen-hidden");
+        step += 1;
+        panel.querySelector(`[data-step="${step}"]`)?.classList.remove("lumen-hidden");
+        nextBtn.textContent = step === 3 ? "Finish" : "Continue";
+        return;
+      }
+
+      const useCases = Array.from(document.querySelectorAll("#lumen-use-cases input:checked")).map(
+        (input) => input.value
+      );
+      const protectedGoals = document
+        .getElementById("lumen-onboarding-goals")
+        .value.split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+      const mode = modeSelect.value;
+      const focusGoal = mode === "focus" ? focusInput.value.trim() : null;
+
+      LumenGoals.completeOnboarding({ useCases, protectedGoals, mode });
+      if (focusGoal) LumenGoals.save({ focusGoal });
+      panel.classList.remove("lumen-onboarding--open");
+      syncSettingsUI();
+    });
+  }
+
+  function showOnboardingIfNeeded() {
+    const goals = LumenGoals.get();
+    if (goals.onboardingComplete) return;
+    document.getElementById("lumen-onboarding")?.classList.add("lumen-onboarding--open");
+  }
+
+  function syncSettingsUI() {
+    const goals = LumenGoals.get();
+    const modeSelect = document.getElementById("lumen-mode-select");
+    const goalsInput = document.getElementById("lumen-goals-input");
+    const focusInput = document.getElementById("lumen-focus-input");
+    const judgeToggle = document.getElementById("lumen-llm-judge");
+    if (modeSelect) modeSelect.value = goals.mode;
+    if (goalsInput) goalsInput.value = goals.protectedGoals.join("\n");
+    if (focusInput) focusInput.value = goals.focusGoal || "";
+    if (judgeToggle) judgeToggle.checked = Boolean(goals.llmJudgeEnabled);
+    renderLastWhyPopover();
+  }
+
+  function renderLastWhyPopover() {
+    const el = document.getElementById("lumen-last-why");
+    if (!el) return;
+    if (!lastEvaluation?.evaluation?.primary) {
+      el.textContent = "No flags yet this session.";
+      return;
+    }
+    el.textContent = lastEvaluation.evaluation.explanation || "Flagged — no detail available.";
+  }
+
+  function updateBadge() {
+    ensureRoot();
+    applyFabPosition();
+    const session = LumenSession.get();
+    const fab = document.getElementById("lumen-fab");
+    const dot = document.getElementById("lumen-fab-dot");
+    const scoreEl = document.getElementById("lumen-fab-score");
+    const score = session.sessionScore || 0;
+    const color =
+      score >= 70
+        ? SIGNAL_COLORS.loop
+        : score >= 45
+          ? SIGNAL_COLORS.handoff
+          : SIGNAL_COLORS.loop;
+    if (dot) dot.style.background = color;
+    if (scoreEl) {
+      scoreEl.textContent = String(score);
+      scoreEl.style.color = color;
+    }
+    if (fab) {
+      fab.style.opacity = LumenGoals.isGhost() ? "0.55" : "1";
+    }
+  }
+
+  function positionPopover() {
+    const fab = document.getElementById("lumen-fab");
+    const popover = document.getElementById("lumen-popover");
+    if (!fab || !popover) return;
+    const rect = fab.getBoundingClientRect();
+    const gap = 12;
+    popover.style.top = "auto";
+    popover.style.bottom = `${window.innerHeight - rect.top + gap}px`;
+    popover.style.right = `${Math.max(12, window.innerWidth - rect.right)}px`;
+    popover.style.left = "auto";
+  }
+
+  function renderSparkline(scores) {
+    const sparkline = globalThis.LumenSparkline;
+    if (sparkline?.render) return sparkline.render(scores);
+
+    const width = 120;
+    const height = 32;
+    const slots = (scores || []).slice(-10);
+    while (slots.length < 10) slots.unshift(null);
+    const barWidth = width / 10 - 2;
+    const bars = slots
+      .map((score, index) => {
+        const x = index * (barWidth + 2);
+        const barHeight = score == null ? 4 : Math.max(4, Math.round((score / 100) * height));
+        const y = height - barHeight;
+        const color =
+          score == null ? "#3a3a3a" : score <= 39 ? "#4caf50" : score <= 69 ? "#f0a500" : "#4caf50";
+        return `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="1" fill="${color}"/>`;
+      })
+      .join("");
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" aria-hidden="true">${bars}</svg>`;
+  }
+
+  function renderPopover() {
+    const session = LumenSession.get();
+    document.getElementById("lumen-sparkline").innerHTML = renderSparkline(session.loopScores);
+    document.getElementById("lumen-stat-messages").textContent = String(session.messageCount);
+    document.getElementById("lumen-stat-handoff").textContent = String(session.handoffCount || 0);
+    document.getElementById("lumen-stat-loop").textContent = String(session.loopCount);
+    document.getElementById("lumen-stat-drift").textContent = String(session.driftCount);
+    document.getElementById("lumen-stat-mismatch").textContent = String(session.mismatchCount);
+    document.getElementById("lumen-stat-depth").textContent = String(session.depthCount);
+    renderDigest();
+    syncSettingsUI();
+    positionPopover();
+  }
+
+  async function renderDigest() {
+    const history = await LumenSession.loadHistory();
+    const digest = LumenNudges.buildDigest({
+      history,
+      session: LumenSession.get(),
+      digestLog: LumenSession.getDigestLog(),
+    });
+    const el = document.getElementById("lumen-digest");
+    if (!el) return;
+    el.innerHTML = `
+      <p class="lumen-digest-line">${digest.headline}</p>
+      <p class="lumen-digest-label">Drift analysis</p>
+      ${digest.driftLines.map((line) => `<p class="lumen-digest-line">${line}</p>`).join("")}
+      <p class="lumen-digest-label">Mismatch</p>
+      <p class="lumen-digest-line">${digest.mismatchSummary}</p>
+      <p class="lumen-digest-label">Sit with</p>
+      <p class="lumen-digest-line lumen-digest-prompt">${digest.prompt}</p>
+    `;
+  }
+
+  function togglePopover() {
+    popoverOpen = !popoverOpen;
+    const popover = document.getElementById("lumen-popover");
+    if (popoverOpen) {
+      renderPopover();
+      popover.classList.add("lumen-popover--open");
+    } else {
+      popover.classList.remove("lumen-popover--open");
+    }
+  }
+
+  function closePopover() {
+    popoverOpen = false;
+    document.getElementById("lumen-popover")?.classList.remove("lumen-popover--open");
+  }
+
+  function shouldShowSignal(signal, evaluation) {
+    const mode = LumenGoals.get().mode;
+    if (mode === "ghost") return false;
+    if (signal === "mismatch" || signal === "depth") return LumenGoals.isActive() && evaluation[signal]?.active;
+    return evaluation[signal]?.active;
+  }
+
+  function createFeedbackButton(msgId, evaluation, promptText) {
+    const btn = document.createElement("button");
+    btn.className = "lumen-fb-btn";
+    btn.setAttribute("aria-label", "This signal was wrong");
+    btn.setAttribute("title", "Wrong signal?");
+    btn.textContent = "✕";
+    btn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const signalType = evaluation.primary;
+      const taskType = evaluation.taskType || "general";
+      const wrongCount = LumenSession.recordFeedback({
+        messageId: msgId,
+        signalType,
+        score: evaluation.loopScore,
+        verdict: "wrong",
+        taskType,
+        promptSnippet: promptText,
+      });
+      btn.textContent = "noted";
+      btn.disabled = true;
+      if (wrongCount >= 3) {
+        showExemptionProposal(taskType, msgId);
+      }
+    });
+    return btn;
+  }
+
+  function showExemptionProposal(taskType, msgId) {
+    if (document.querySelector(`.lumen-exemption-card[data-task-type="${taskType}"]`)) return;
+    const label = LumenGoals.taskTypeLabel(taskType);
+    const card = document.createElement("div");
+    card.className = "lumen-card lumen-exemption-card";
+    card.setAttribute("data-task-type", taskType);
+    card.innerHTML = `
+      <div class="lumen-card-body">This looks like ${label}. Should I stop flagging this for you?</div>
+      <div class="lumen-card-actions">
+        <button class="lumen-card-btn" data-action="yes">Yes — ${label} is fine to delegate</button>
+        <button class="lumen-card-btn lumen-card-btn--secondary" data-action="no">No, keep flagging</button>
+      </div>
+    `;
+    card.querySelector('[data-action="yes"]')?.addEventListener("click", () => {
+      LumenGoals.addTaskTypeExemption(taskType);
+      card.remove();
+    });
+    card.querySelector('[data-action="no"]')?.addEventListener("click", () => card.remove());
+    const strip = document.querySelector(`.lumen-strip[data-lumen-msg-id="${msgId}"]`);
+    (strip || document.getElementById("lumen-root")).insertAdjacentElement("afterend", card);
+  }
+
+  function injectMessageUI(msg, evaluation, adapter, options = {}) {
+    if (LumenGoals.isGhost()) return;
+
+    const wrapper = adapter.findUserMessageWrapper(msg.el);
+    if (!wrapper) return;
+
+    const bubble =
+      wrapper.querySelector(".markdown, .prose, [class*='markdown']")?.parentElement || wrapper;
+
+    const strip = renderStrip(msg.id, evaluation, msg.text);
+    if (strip && !strip.isConnected) bubble.insertAdjacentElement("afterend", strip);
+    updateWhyLine(msg.id, evaluation);
+
+    if (evaluation.primary) {
+      lastEvaluation = {
+        msgId: msg.id,
+        evaluation,
+        snippet: msg.text.slice(0, 120),
+      };
+    } else if (options.fromJudge && lastEvaluation?.msgId === msg.id) {
+      lastEvaluation = {
+        msgId: msg.id,
+        evaluation,
+        snippet: msg.text.slice(0, 120),
+      };
+    }
+
+    if (evaluation.overlayType && !dismissedReconsider.has(msg.id)) {
+      const isFresh = msg.timestamp && Date.now() - msg.timestamp < 8000;
+      const shouldOverlay =
+        options.fromJudge ||
+        ((options.isNewMessage || isFresh) && evaluation.confidence !== "gray");
+      if (shouldOverlay) {
+        showSignalOverlay(msg, evaluation, adapter);
+      }
+    }
+
+    if (
+      LumenGoals.isActive() &&
+      (evaluation.primary === "mismatch" || evaluation.primary === "depth")
+    ) {
+      renderCard(msg.id, evaluation, strip || bubble, msg.el, adapter);
+    }
+  }
+
+  function keepAssistantHidden(adapter, msgEl) {
+    let restore = adapter.hideAssistantResponsesAfter(msgEl);
+    const container = adapter.getMessageContainer?.() || document.body;
+    const observer = new MutationObserver(() => {
+      restore();
+      restore = adapter.hideAssistantResponsesAfter(msgEl);
+    });
+    observer.observe(container, { childList: true, subtree: true });
+    return {
+      stop() {
+        observer.disconnect();
+      },
+      show() {
+        observer.disconnect();
+        restore();
+      },
+    };
+  }
+
+  function resolveStripDisplay(evaluation) {
+    if (evaluation.primary === "mismatch" && evaluation.mismatch?.active && LumenGoals.isActive()) {
+      return {
+        signal: "mismatch",
+        label: evaluation.mismatch.label,
+        color: SIGNAL_COLORS.mismatch,
+      };
+    }
+    if (evaluation.primary === "depth" && evaluation.depth?.active && LumenGoals.isActive()) {
+      return {
+        signal: "depth",
+        label: evaluation.depth.label,
+        color: SIGNAL_COLORS.depth,
+      };
+    }
+    if (evaluation.primary === "handoff" && evaluation.handoff?.active) {
+      return {
+        signal: "handoff",
+        label: evaluation.handoff.label,
+        color: SIGNAL_COLORS.handoff,
+      };
+    }
+    if (evaluation.primary === "drift" && evaluation.drift?.active) {
+      return {
+        signal: "drift",
+        label: evaluation.drift.label,
+        color: SIGNAL_COLORS.drift,
+      };
+    }
+    if (evaluation.primary === "loop" && evaluation.loop?.active) {
+      const score = evaluation.loopScore || 0;
+      return {
+        signal: "loop",
+        label: evaluation.loop.label,
+        color: score >= 40 ? SIGNAL_COLORS.handoff : SIGNAL_COLORS.loop,
+      };
+    }
+
+    return null;
+  }
+
+  function updateWhyLine(msgId, evaluation) {
+    const existing = document.querySelector(`.lumen-why[data-lumen-msg-id="${msgId}"]`);
+    const explanation = evaluation.explanation?.trim();
+    if (!explanation || !evaluation.primary) {
+      existing?.remove();
+      return;
+    }
+    if (existing) {
+      existing.textContent = explanation;
+      return;
+    }
+    const strip = document.querySelector(`.lumen-strip[data-lumen-msg-id="${msgId}"]`);
+    if (!strip) return;
+    const why = document.createElement("div");
+    why.className = "lumen-why";
+    why.setAttribute("data-lumen-msg-id", msgId);
+    why.textContent = explanation;
+    strip.insertAdjacentElement("afterend", why);
+  }
+
+  function renderStrip(msgId, evaluation, promptText) {
+    if (LumenGoals.isGhost()) return null;
+
+    const display = resolveStripDisplay(evaluation);
+    const existing = document.querySelector(`.lumen-strip[data-lumen-msg-id="${msgId}"]`);
+
+    if (!display) {
+      existing?.remove();
+      document.querySelector(`.lumen-why[data-lumen-msg-id="${msgId}"]`)?.remove();
+      return null;
+    }
+
+    const { label, color } = display;
+
+    if (existing) {
+      existing.querySelector(".lumen-strip-dot").style.background = color;
+      existing.querySelector(".lumen-strip-state").textContent = LumenNudges.truncate(label);
+      existing.querySelector(".lumen-strip-state").style.color = color;
+      existing.querySelector(".lumen-strip-state").style.opacity = "0.7";
+      return existing;
+    }
+
+    const strip = document.createElement("div");
+    strip.className = "lumen-strip";
+    strip.setAttribute("data-lumen-msg-id", msgId);
+    strip.innerHTML = `
+      <span class="lumen-strip-label">Lumen</span>
+      <span class="lumen-strip-dot" style="background:${color}"></span>
+      <span class="lumen-strip-state" style="color:${color};opacity:0.7">${LumenNudges.truncate(label)}</span>
+    `;
+    strip.appendChild(createFeedbackButton(msgId, evaluation, promptText || ""));
+    return strip;
+  }
+
+  function renderCard(msgId, evaluation, anchor, msgEl, adapter) {
+    if (LumenGoals.isGhost() || !LumenGoals.isActive()) return;
+
+    document.querySelector(`.lumen-card[data-lumen-msg-id="${msgId}"]`)?.remove();
+
+    if (!LumenGoals.isActive()) return;
+
+    if (evaluation.primary === "mismatch" && evaluation.mismatch.active) {
+      const session = LumenSession.get();
+      const copy = LumenNudges.getMismatchCardCopy(
+        evaluation.mismatch.goal,
+        session.mismatchCount
+      );
+      const card = document.createElement("div");
+      card.className = "lumen-card lumen-card--mismatch";
+      card.setAttribute("data-lumen-msg-id", msgId);
+      card.innerHTML = `
+        <div class="lumen-card-title">${copy.title}</div>
+        <div class="lumen-card-body">${copy.body}</div>
+        <div class="lumen-card-actions">
+          <button class="lumen-card-btn" data-action="pause">${copy.pauseLabel}</button>
+          <button class="lumen-card-btn lumen-card-btn--secondary" data-action="continue">${copy.continueLabel}</button>
+        </div>
+      `;
+      card.querySelector('[data-action="pause"]')?.addEventListener("click", () => {
+        LumenSession.logMismatchEvent(evaluation.mismatch.goal, "pause");
+        adapter.findChatInput()?.focus();
+      });
+      card.querySelector('[data-action="continue"]')?.addEventListener("click", () => {
+        LumenGoals.removeProtectedGoal(evaluation.mismatch.goal);
+        LumenSession.logMismatchEvent(evaluation.mismatch.goal, "goal-changed");
+        card.remove();
+        syncSettingsUI();
+      });
+      anchor.insertAdjacentElement("afterend", card);
+    }
+
+    if (evaluation.primary === "depth" && evaluation.depth.active) {
+      const copy = LumenNudges.getDepthCardCopy(
+        evaluation.depth.taskType,
+        evaluation.depth.warm
+      );
+      const card = document.createElement("div");
+      card.className = "lumen-card lumen-card--depth" + (evaluation.depth.warm ? " lumen-card--warm" : "");
+      card.setAttribute("data-lumen-msg-id", msgId);
+      card.innerHTML = `
+        <div class="lumen-card-title">${copy.title}</div>
+        <div class="lumen-card-body">${copy.body}</div>
+        <textarea class="lumen-card-reflection" placeholder="${copy.placeholder}"></textarea>
+        <div class="lumen-card-actions">
+          <button class="lumen-card-btn" data-action="think">${copy.thinkLabel}</button>
+          <button class="lumen-card-btn lumen-card-btn--secondary" data-action="skip">${copy.skipLabel}</button>
+        </div>
+      `;
+      let restoreAi = () => {};
+      card.querySelector('[data-action="think"]')?.addEventListener("click", () => {
+        restoreAi = adapter.hideAssistantResponsesAfter(msgEl);
+        card.querySelector(".lumen-card-reflection")?.focus();
+      });
+      card.querySelector('[data-action="skip"]')?.addEventListener("click", () => {
+        restoreAi();
+        LumenSession.logDepthMoment(msgEl?.textContent || "", "skip");
+        card.remove();
+      });
+      card.querySelector(".lumen-card-reflection")?.addEventListener("blur", () => {
+        const text = card.querySelector(".lumen-card-reflection")?.value.trim();
+        if (text) LumenSession.logDepthMoment(text, "reflected");
+      });
+      anchor.insertAdjacentElement("afterend", card);
+    }
+  }
+
+  function init() {
+    ensureRoot();
+    applyFabPosition();
+    showOnboardingIfNeeded();
+    updateBadge();
+  }
+
+  return {
+    init,
+    updateBadge,
+    injectMessageUI,
+  };
+})();
+
+globalThis.LumenWidget = LumenWidget;
