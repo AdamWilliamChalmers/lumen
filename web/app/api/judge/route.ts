@@ -1,5 +1,5 @@
 import { extensionJsonResponse, handleExtensionOptions } from "@/lib/extensionCors";
-import { anthropicJudge, heuristicJudge, openaiJudge, type JudgeRequest } from "@/lib/judge";
+import { anthropicJudge, heuristicJudge, openaiJudge, type JudgeRequest, type JudgeVerdict } from "@/lib/judge";
 
 export async function OPTIONS(request: Request) {
   return handleExtensionOptions(request);
@@ -31,20 +31,30 @@ export async function POST(request: Request) {
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
 
-  try {
-    const verdict = anthropicKey
-      ? await anthropicJudge(body, anthropicKey)
-      : openaiKey
-        ? await openaiJudge(body, openaiKey)
-        : heuristicJudge(body);
-    return extensionJsonResponse(request, { ok: true, ...verdict });
-  } catch (err) {
-    const fallback = heuristicJudge(body);
-    return extensionJsonResponse(request, {
-      ok: true,
-      ...fallback,
-      fallback: true,
-      error: err instanceof Error ? err.message : "judge failed",
-    });
+  // Ordered LLM cascade: try Anthropic first, fall through to OpenAI on error,
+  // then finally the local heuristic. Each provider only runs if its key exists.
+  const providers: Array<{ name: string; run: () => Promise<JudgeVerdict> }> = [];
+  if (anthropicKey) providers.push({ name: "anthropic", run: () => anthropicJudge(body, anthropicKey) });
+  if (openaiKey) providers.push({ name: "openai", run: () => openaiJudge(body, openaiKey) });
+
+  const errors: string[] = [];
+  for (const provider of providers) {
+    try {
+      const verdict = await provider.run();
+      return extensionJsonResponse(request, {
+        ok: true,
+        ...verdict,
+        ...(errors.length ? { fellBackFrom: errors } : {}),
+      });
+    } catch (err) {
+      errors.push(`${provider.name}: ${err instanceof Error ? err.message : "failed"}`);
+    }
   }
+
+  const fallback = heuristicJudge(body);
+  return extensionJsonResponse(request, {
+    ok: true,
+    ...fallback,
+    ...(errors.length ? { fallback: true, error: errors.join("; ") } : {}),
+  });
 }
