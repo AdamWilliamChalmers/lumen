@@ -42,6 +42,13 @@ const SIGNALS = [
   },
 ];
 
+const MODES = [
+  { name: "Ambient", desc: "Quiet strips beside your messages. The default." },
+  { name: "Ghost", desc: "Invisible in-session — you only get the weekly digest." },
+  { name: "Active", desc: "All signals plus reflection cards when it matters." },
+  { name: "Focus", desc: "Active, plus a goal you declare for the session." },
+];
+
 export default function HomePage() {
   return (
     <main className="lm-app-shell">
@@ -153,6 +160,24 @@ export default function HomePage() {
                 {s.name}
               </div>
               <div className="lm-signal-explain__desc">{s.desc}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Modes — how present Lumen is */}
+      <section className="max-w-3xl mx-auto px-6 pb-20">
+        <div className="lm-label text-center mb-2">You choose how present it is</div>
+        <p className="text-center text-[13px] text-[var(--lm-slate)] mb-6 max-w-lg mx-auto">
+          One dial, switchable any time from the pill — and you can pause Lumen entirely.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {MODES.map((m) => (
+            <div key={m.name} className="lm-surface p-4 flex gap-3 items-baseline">
+              <span className="text-[13px] font-semibold text-[var(--lm-dusk)] min-w-[58px]">
+                {m.name}
+              </span>
+              <span className="text-[13px] text-[var(--lm-slate)] leading-relaxed">{m.desc}</span>
             </div>
           ))}
         </div>

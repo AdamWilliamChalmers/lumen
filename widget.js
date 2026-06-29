@@ -74,21 +74,26 @@ const LumenWidget = (() => {
         <span id="lumen-fab-score">0</span>
       </div>
       <div id="lumen-popover">
-        <div class="lumen-popover-title">Engagement this session</div>
+        <div class="lumen-popover-head">
+          <div class="lumen-popover-title">Engagement this session</div>
+          <button id="lumen-pause-toggle" class="lumen-popover-pause" type="button">Pause</button>
+        </div>
         <div class="lumen-popover-sparkline" id="lumen-sparkline"></div>
-        <div class="lumen-popover-stat"><span>Messages</span><span class="lumen-popover-stat-value" id="lumen-stat-messages">0</span></div>
-        <div class="lumen-popover-stat"><span>Check-ins</span><span class="lumen-popover-stat-value" id="lumen-stat-handoff">0</span></div>
-        <div class="lumen-popover-stat"><span>Pause moments</span><span class="lumen-popover-stat-value" id="lumen-stat-loop">0</span></div>
-        <div class="lumen-popover-stat"><span>Drift</span><span class="lumen-popover-stat-value" id="lumen-stat-drift">0</span></div>
-        <div class="lumen-popover-stat"><span>Mismatch</span><span class="lumen-popover-stat-value" id="lumen-stat-mismatch">0</span></div>
-        <div class="lumen-popover-stat"><span>Depth</span><span class="lumen-popover-stat-value" id="lumen-stat-depth">0</span></div>
-        <label class="lumen-popover-label">Visibility</label>
+        <div class="lumen-popover-stat" title="Prompts you sent this session"><span>Messages</span><span class="lumen-popover-stat-value" id="lumen-stat-messages">0</span></div>
+        <div class="lumen-popover-stat" title="Whole tasks you asked AI to do from scratch"><span>Hand-offs</span><span class="lumen-popover-stat-value" id="lumen-stat-handoff">0</span></div>
+        <div class="lumen-popover-stat" title="Stretches of passive back-and-forth without questions"><span>Loops</span><span class="lumen-popover-stat-value" id="lumen-stat-loop">0</span></div>
+        <div class="lumen-popover-stat" title="Conversations that wandered from your prompt"><span>Drift</span><span class="lumen-popover-stat-value" id="lumen-stat-drift">0</span></div>
+        <div class="lumen-popover-stat" title="Prompts that conflicted with a goal you set"><span>Mismatch</span><span class="lumen-popover-stat-value" id="lumen-stat-mismatch">0</span></div>
+        <div class="lumen-popover-stat" title="Moments worth thinking through before asking"><span>Depth</span><span class="lumen-popover-stat-value" id="lumen-stat-depth">0</span></div>
+        <p class="lumen-popover-hint lumen-hidden" id="lumen-stats-empty">Lumen fills this in as you chat.</p>
+        <label class="lumen-popover-label">Mode</label>
         <select id="lumen-mode-select" class="lumen-popover-select">
-          <option value="ghost">Ghost</option>
           <option value="ambient">Ambient</option>
+          <option value="ghost">Ghost</option>
           <option value="active">Active</option>
           <option value="focus">Focus</option>
         </select>
+        <p class="lumen-popover-hint" id="lumen-mode-hint"></p>
         <label class="lumen-popover-label">Protected goals</label>
         <textarea id="lumen-goals-input" class="lumen-popover-goals" placeholder="One goal per line"></textarea>
         <label class="lumen-popover-label">Focus goal (this session)</label>
@@ -206,6 +211,17 @@ const LumenWidget = (() => {
 
     document.getElementById("lumen-mode-select")?.addEventListener("change", (event) => {
       LumenGoals.save({ mode: event.target.value });
+      updateModeHint();
+      updateBadge();
+    });
+
+    document.getElementById("lumen-pause-toggle")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const nowPaused = !LumenGoals.isPaused();
+      LumenGoals.setPaused(nowPaused);
+      if (nowPaused) clearInjectedUI();
+      syncSettingsUI();
+      updateBadge();
     });
 
     document.getElementById("lumen-goals-input")?.addEventListener("change", (event) => {
@@ -524,7 +540,37 @@ const LumenWidget = (() => {
     if (shareToggle) shareToggle.checked = Boolean(goals.shareAnonymisedData);
     if (backendInput) backendInput.value = base;
     if (calibrationLink) calibrationLink.href = `${base}/calibration`;
+
+    const pauseBtn = document.getElementById("lumen-pause-toggle");
+    if (pauseBtn) {
+      const paused = LumenGoals.isPaused();
+      pauseBtn.textContent = paused ? "Resume" : "Pause";
+      pauseBtn.classList.toggle("lumen-popover-pause--on", paused);
+    }
+    const emptyHint = document.getElementById("lumen-stats-empty");
+    if (emptyHint) emptyHint.classList.toggle("lumen-hidden", Boolean(LumenSession.get().messageCount));
+
+    updateModeHint();
     renderLastWhyPopover();
+  }
+
+  function updateModeHint() {
+    const hint = document.getElementById("lumen-mode-hint");
+    if (!hint) return;
+    if (LumenGoals.isPaused()) {
+      hint.textContent = "Paused — no tracking or signals until you resume.";
+      return;
+    }
+    hint.textContent = LumenGoals.modeMeta().blurb;
+  }
+
+  function clearInjectedUI() {
+    document
+      .querySelectorAll(".lumen-strip, .lumen-card, .lumen-why")
+      .forEach((el) => el.remove());
+    document
+      .querySelectorAll(".lumen-ai-hidden")
+      .forEach((el) => el.classList.remove("lumen-ai-hidden"));
   }
 
   function renderLastWhyPopover() {
@@ -552,16 +598,22 @@ const LumenWidget = (() => {
     const scoreEl = document.getElementById("lumen-fab-score");
     // sessionScore is a passive-acceptance score (higher = more offloading).
     // Surface the inverse so the badge reads as engagement: higher = better.
+    const paused = LumenGoals.isPaused();
     const engagement = session.messageCount ? 100 - (session.sessionScore || 0) : 0;
     const color = session.messageCount ? engagementColor(engagement) : SIGNAL_COLORS.loop;
-    if (dot) dot.style.background = color;
+    if (dot) dot.style.background = paused ? "var(--lm-ghost)" : color;
     if (scoreEl) {
-      scoreEl.textContent = String(engagement);
-      scoreEl.style.color = color;
-      scoreEl.title = "Engagement this session — higher means more active evaluation";
+      scoreEl.textContent = paused ? "॥" : String(engagement);
+      scoreEl.style.color = paused ? "var(--lm-haze)" : color;
+      scoreEl.title = paused
+        ? "Lumen is paused — click to open settings and resume"
+        : "Engagement this session — higher means more active evaluation";
     }
     if (fab) {
-      fab.style.opacity = LumenGoals.isGhost() ? "0.55" : "1";
+      // Per-mode + paused looks are handled in CSS via these data attributes so
+      // the user can see at a glance which mode they're in.
+      fab.dataset.mode = LumenGoals.get().mode || "ambient";
+      fab.dataset.paused = paused ? "true" : "false";
     }
   }
 
@@ -609,13 +661,19 @@ const LumenWidget = (() => {
     if (!el) return;
     el.innerHTML = `
       <p class="lumen-digest-line">${digest.headline}</p>
-      <p class="lumen-digest-label">Drift analysis</p>
+      ${
+        digest.platforms?.length
+          ? `<p class="lumen-digest-label" title="Lumen tracks every supported AI tool — this is your message split this week">Across tools</p>
+      <p class="lumen-digest-line">${digest.platforms.map((p) => `${p.name} ${p.count}`).join(" · ")}</p>`
+          : ""
+      }
+      <p class="lumen-digest-label" title="How your questioning, prompt length and passive replies trended this week">Drift analysis</p>
       ${digest.driftLines.map((line) => `<p class="lumen-digest-line">${line}</p>`).join("")}
-      <p class="lumen-digest-label">Mismatch</p>
+      <p class="lumen-digest-label" title="Times a prompt conflicted with a goal you set">Mismatch</p>
       <p class="lumen-digest-line">${digest.mismatchSummary}</p>
-      <p class="lumen-digest-label">Your responses</p>
+      <p class="lumen-digest-label" title="How often you engaged with a nudge instead of skipping it">Your responses</p>
       <p class="lumen-digest-line">${digest.responses.line}</p>
-      <p class="lumen-digest-label">Sit with</p>
+      <p class="lumen-digest-label" title="A reflection prompt to take away from the week">Sit with</p>
       <p class="lumen-digest-line lumen-digest-prompt">${digest.prompt}</p>
     `;
   }

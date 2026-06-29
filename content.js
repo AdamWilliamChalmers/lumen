@@ -121,6 +121,13 @@
       deps();
     if (!LumenSession || !LumenGoals || !LumenEngine || !LumenWidget || !adapter) return;
 
+    // Paused is a true off-switch: no scoring, no snapshots, no nudges. The FAB
+    // stays (dimmed) so the user can resume.
+    if (LumenGoals.isPaused()) {
+      LumenWidget.updateBadge();
+      return;
+    }
+
     syncMessagesFromDom();
     const session = LumenSession.get();
     const currentMetrics = LumenSession.computeSessionMetrics(messages);

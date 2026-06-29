@@ -2,9 +2,21 @@ const LumenGoals = (() => {
   const STORAGE_KEY = "lumenUserGoals";
   const EXEMPTIONS_KEY = "lumenTaskTypeExemptions";
 
+  // Mode is the single dial for how present Lumen is — it governs tracking,
+  // nudges, and the FAB's look, not just "visibility". Copy lives here so the
+  // popover helper line, onboarding, and landing page stay in sync.
+  const MODES = [
+    { value: "ambient", label: "Ambient", blurb: "Quiet strips beside messages. The default." },
+    { value: "ghost", label: "Ghost", blurb: "Invisible in-session — weekly digest only." },
+    { value: "active", label: "Active", blurb: "All signals plus reflection cards." },
+    { value: "focus", label: "Focus", blurb: "Active, plus a goal you declare for this session." },
+  ];
+
   const DEFAULTS = {
     onboardingComplete: false,
     mode: "ambient",
+    // True off-switch: pauses tracking and nudges everywhere until resumed.
+    paused: false,
     useCases: [],
     protectedGoals: [],
     focusGoal: null,
@@ -107,6 +119,22 @@ const LumenGoals = (() => {
 
   function isActive() {
     return cache.mode === "active" || cache.mode === "focus";
+  }
+
+  function isPaused() {
+    return Boolean(cache.paused);
+  }
+
+  function setPaused(value) {
+    return save({ paused: Boolean(value) });
+  }
+
+  function modeMeta(mode = cache.mode) {
+    return MODES.find((m) => m.value === mode) || MODES[0];
+  }
+
+  function listModes() {
+    return MODES.map((m) => ({ ...m }));
   }
 
   function addTaskTypeExemption(taskType) {
@@ -216,6 +244,10 @@ const LumenGoals = (() => {
     taskTypeLabel,
     isGhost,
     isActive,
+    isPaused,
+    setPaused,
+    modeMeta,
+    listModes,
     checkMismatch,
     setStudyParticipant,
     loadStudyParticipant,

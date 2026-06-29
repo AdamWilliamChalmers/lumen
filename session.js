@@ -237,17 +237,44 @@ const LumenSession = (() => {
     });
   }
 
+  // Combine each platform's daily snapshot into one weighted-by-messages
+  // aggregate, so the weekly digest reflects activity across every LLM used
+  // that day rather than just the last one written.
+  function aggregatePlatforms(byPlatform) {
+    const entries = Object.values(byPlatform || {});
+    const totalMessages = entries.reduce((sum, e) => sum + (e.messageCount || 0), 0);
+    if (!totalMessages) {
+      return { messageCount: 0, questionRatio: 0, avgPromptLength: 0, passiveRate: 0 };
+    }
+    const weighted = (key) =>
+      entries.reduce((sum, e) => sum + (e[key] || 0) * (e.messageCount || 0), 0) / totalMessages;
+    return {
+      messageCount: totalMessages,
+      questionRatio: weighted("questionRatio"),
+      avgPromptLength: weighted("avgPromptLength"),
+      passiveRate: weighted("passiveRate"),
+    };
+  }
+
   function saveSessionSnapshot(messages) {
-    const metrics = computeSessionMetrics(messages);
-    const snapshot = {
-      date: new Date().toISOString().slice(0, 10),
-      ...metrics,
+    const date = new Date().toISOString().slice(0, 10);
+    const platform = session.platform || window.location.hostname;
+    const platformSnap = {
+      ...computeSessionMetrics(messages),
       messageCount: messages.filter((m) => m.role === "user").length,
     };
 
     return loadHistory().then((history) => {
-      const filtered = history.filter((entry) => entry.date !== snapshot.date);
-      filtered.push(snapshot);
+      const existing = history.find((entry) => entry.date === date);
+      // Each process() call passes the full current-page message list, so the
+      // per-platform entry is overwritten (not accumulated); only distinct
+      // platforms add up across the day.
+      const byPlatform = { ...(existing?.byPlatform || {}) };
+      byPlatform[platform] = platformSnap;
+
+      const entry = { date, byPlatform, ...aggregatePlatforms(byPlatform) };
+      const filtered = history.filter((e) => e.date !== date);
+      filtered.push(entry);
       const trimmed = filtered.slice(-28);
 
       try {

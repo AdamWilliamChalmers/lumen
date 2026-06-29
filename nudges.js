@@ -189,6 +189,43 @@ const LumenNudges = (() => {
     return { engaged, skipped, total, rate, drafted, reflected, paused, line };
   }
 
+  const PLATFORM_NAMES = {
+    "chatgpt.com": "ChatGPT",
+    "chat.openai.com": "ChatGPT",
+    "claude.ai": "Claude",
+    "gemini.google.com": "Gemini",
+    "grok.com": "Grok",
+    "x.com": "Grok",
+    "copilot.microsoft.com": "Copilot",
+    "perplexity.ai": "Perplexity",
+    "www.perplexity.ai": "Perplexity",
+  };
+
+  function prettyPlatform(host) {
+    if (PLATFORM_NAMES[host]) return PLATFORM_NAMES[host];
+    return (host || "").replace(/^www\./, "").replace(/\.(com|ai|google\.com)$/, "");
+  }
+
+  // Roll the week's per-platform message counts into "ChatGPT 40 · Claude 12"
+  // style lines so users can see Lumen is tracking across every tool.
+  function summarisePlatforms(week) {
+    const totals = {};
+    week.forEach((entry) => {
+      const byPlatform = entry.byPlatform;
+      if (byPlatform && Object.keys(byPlatform).length) {
+        Object.entries(byPlatform).forEach(([host, snap]) => {
+          totals[host] = (totals[host] || 0) + (snap.messageCount || 0);
+        });
+      } else if (entry.platform) {
+        totals[entry.platform] = (totals[entry.platform] || 0) + (entry.messageCount || 0);
+      }
+    });
+    return Object.entries(totals)
+      .filter(([, count]) => count > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([host, count]) => ({ name: prettyPlatform(host), count }));
+  }
+
   function buildDigest({ history, session, digestLog }) {
     const week = history.slice(-7);
     const avgQuestion =
@@ -214,6 +251,7 @@ const LumenNudges = (() => {
       headline,
       loopTrend,
       driftLines,
+      platforms: summarisePlatforms(week),
       depthMoments: (digestLog.depthMoments || []).slice(-3),
       mismatchSummary: `${session.mismatchCount || 0} intention checks this session`,
       responses: summariseResponses(digestLog),
