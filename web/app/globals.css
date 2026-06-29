@@ -362,3 +362,62 @@ body {
   font-size: 10px;
   font-weight: 600;
 }
+
+/* ── Brand mark (two offset squares) ── */
+.lumen-mark {
+  --lm-mark-dur: 3.2s;
+  --lm-mark-ease: cubic-bezier(0.37, 0, 0.63, 1);
+}
+.lumen-mark .lm-you,
+.lumen-mark .lm-ai {
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+.lumen-mark .lm-inter {
+  will-change: transform, opacity;
+}
+
+/* Resting state holds the static offset; the loop converges the squares,
+   "flips" the you-square (scaleX collapse → expand), and flares the glow. */
+@keyframes lumen-mark-you {
+  0%, 30% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+  50% { transform: translate(var(--lm-shift), var(--lm-shift)) rotate(7deg) scale(0.97); opacity: 1; }
+  58% { transform: translate(var(--lm-shift), var(--lm-shift)) rotate(2deg) scale(1.03); opacity: 0.9; }
+  64% { transform: translate(var(--lm-shift), var(--lm-shift)) rotate(0deg) scaleX(0) scaleY(1.03); opacity: 0.55; }
+  70% { transform: translate(var(--lm-shift), var(--lm-shift)) rotate(-2deg) scale(1.03); opacity: 0.9; }
+  84% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+  100% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+}
+@keyframes lumen-mark-ai {
+  0%, 30% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+  50% { transform: translate(calc(-1 * var(--lm-shift)), calc(-1 * var(--lm-shift))) rotate(-7deg) scale(0.97); opacity: 1; }
+  58% { transform: translate(calc(-1 * var(--lm-shift)), calc(-1 * var(--lm-shift))) rotate(-2deg) scale(1.03); opacity: 0.9; }
+  64% { transform: translate(calc(-1 * var(--lm-shift)), calc(-1 * var(--lm-shift))) rotate(0deg) scaleX(0) scaleY(1.03); opacity: 0.55; }
+  70% { transform: translate(calc(-1 * var(--lm-shift)), calc(-1 * var(--lm-shift))) rotate(2deg) scale(1.03); opacity: 0.9; }
+  84% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+  100% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+}
+@keyframes lumen-mark-inter {
+  0%, 28% { opacity: 0; transform: scale(0.5); }
+  52% { opacity: 0.28; transform: scale(1); }
+  64% { opacity: 0.65; transform: scale(1.12); }
+  76% { opacity: 0.18; transform: scale(0.9); }
+  88%, 100% { opacity: 0; transform: scale(0.5); }
+}
+
+.lumen-mark.is-loop .lm-you { animation: lumen-mark-you var(--lm-mark-dur) var(--lm-mark-ease) infinite; }
+.lumen-mark.is-loop .lm-ai { animation: lumen-mark-ai var(--lm-mark-dur) var(--lm-mark-ease) infinite; }
+.lumen-mark.is-loop .lm-inter { animation: lumen-mark-inter var(--lm-mark-dur) var(--lm-mark-ease) infinite; }
+
+.lumen-mark.is-active .lm-you { animation: lumen-mark-you var(--lm-mark-dur) var(--lm-mark-ease) 1; }
+.lumen-mark.is-active .lm-ai { animation: lumen-mark-ai var(--lm-mark-dur) var(--lm-mark-ease) 1; }
+.lumen-mark.is-active .lm-inter { animation: lumen-mark-inter var(--lm-mark-dur) var(--lm-mark-ease) 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lumen-mark .lm-you,
+  .lumen-mark .lm-ai,
+  .lumen-mark .lm-inter {
+    animation: none !important;
+  }
+  .lumen-mark .lm-inter { opacity: 0.18; transform: scale(1); }
+}

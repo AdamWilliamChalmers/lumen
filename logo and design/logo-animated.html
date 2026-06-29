@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lumen — animated mark</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --dark: #181816;
+    --teal: #1D9E75;
+    --white: #ffffff;
+    --gray: #2C2C2A;
+    --dur: 3.2s;
+    --ease: cubic-bezier(0.37, 0, 0.63, 1);
+  }
+  body {
+    background: var(--dark);
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    gap: 72px;
+    padding: 64px 32px;
+  }
+  .section-label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.28);
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  .row {
+    display: flex;
+    align-items: flex-end;
+    gap: 40px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .tag {
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.28);
+  }
+
+  /* ─────────────────────────────
+     ANIMATED MARK
+  ───────────────────────────── */
+  .lumen-mark {
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  /* The two squares and intersection glow are sized via inline style
+     so one animation definition handles all scales */
+  .lumen-mark .sq-you,
+  .lumen-mark .sq-ai,
+  .lumen-mark .inter {
+    position: absolute;
+    will-change: transform, opacity;
+  }
+
+  .lumen-mark .sq-you {
+    background: var(--white);
+    animation: you-move var(--dur) var(--ease) infinite;
+    transform-origin: center;
+  }
+  .lumen-mark .sq-ai {
+    border: 2px solid var(--teal);  /* overridden per size via inline style */
+    background: transparent;
+    animation: ai-move var(--dur) var(--ease) infinite;
+    transform-origin: center;
+  }
+  .lumen-mark .inter {
+    background: var(--teal);
+    opacity: 0;
+    pointer-events: none;
+    animation: inter-pulse var(--dur) var(--ease) infinite;
+  }
+
+  /*
+    Resting state = static logo offset.
+    Phase 0–30%:  hold rest
+    Phase 30–52%: converge + slight rotate
+    Phase 52–66%: card flip (scaleX collapse → expand)
+    Phase 66–82%: separate back, return
+    Phase 82–100%: hold rest
+  */
+  @keyframes you-move {
+    0%,  30% { transform: translate(0,0)       rotate(0deg)  scale(1);         opacity: 1; }
+    50%       { transform: translate(22px,22px)  rotate(7deg)  scale(0.97);      opacity: 1; }
+    58%       { transform: translate(22px,22px)  rotate(2deg)  scale(1.03)  scaleX(1);   opacity: 0.9; }
+    64%       { transform: translate(22px,22px)  rotate(0deg)  scaleX(0)    scaleY(1.03); opacity: 0.55; }
+    70%       { transform: translate(22px,22px)  rotate(-2deg) scaleX(1)    scale(1.03);  opacity: 0.9; }
+    84%       { transform: translate(0,0)         rotate(0deg)  scale(1);         opacity: 1; }
+    100%      { transform: translate(0,0)         rotate(0deg)  scale(1);         opacity: 1; }
+  }
+  @keyframes ai-move {
+    0%,  30% { transform: translate(0,0)         rotate(0deg)   scale(1);         opacity: 1; }
+    50%       { transform: translate(-22px,-22px)  rotate(-7deg)  scale(0.97);      opacity: 1; }
+    58%       { transform: translate(-22px,-22px)  rotate(-2deg)  scale(1.03)  scaleX(1);   opacity: 0.9; }
+    64%       { transform: translate(-22px,-22px)  rotate(0deg)   scaleX(0)    scaleY(1.03); opacity: 0.55; }
+    70%       { transform: translate(-22px,-22px)  rotate(2deg)   scaleX(1)    scale(1.03);  opacity: 0.9; }
+    84%       { transform: translate(0,0)           rotate(0deg)   scale(1);         opacity: 1; }
+    100%      { transform: translate(0,0)           rotate(0deg)   scale(1);         opacity: 1; }
+  }
+  @keyframes inter-pulse {
+    0%,  28%  { opacity: 0;    transform: scale(0.5); }
+    52%        { opacity: 0.28; transform: scale(1);   }
+    64%        { opacity: 0.65; transform: scale(1.12); }
+    76%        { opacity: 0.18; transform: scale(0.9); }
+    88%        { opacity: 0;    transform: scale(0.5); }
+    100%       { opacity: 0;    transform: scale(0.5); }
+  }
+
+  /* ─────────────────────────────
+     WORDMARK
+  ───────────────────────────── */
+  .lockup {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .wm-text {
+    font-weight: 300;
+    letter-spacing: -0.5px;
+    color: var(--white);
+    line-height: 1;
+  }
+
+  /* ─────────────────────────────
+     FAB
+  ───────────────────────────── */
+  .fab {
+    background: var(--gray);
+    border: 1.5px solid rgba(255,255,255,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+  .fab:hover {
+    border-color: rgba(255,255,255,0.22);
+    transform: scale(1.04);
+  }
+  .fab:active { transform: scale(0.97); }
+
+  /* ─────────────────────────────
+     THINKING STATE
+  ───────────────────────────── */
+  .thinking-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .thinking-text {
+    font-size: 14px;
+    color: rgba(255,255,255,0.4);
+    animation: thinking-fade var(--dur) ease-in-out infinite;
+  }
+  @keyframes thinking-fade {
+    0%,  30%  { opacity: 0.4; }
+    55%, 72%  { opacity: 0.85; }
+    100%      { opacity: 0.4; }
+  }
+
+  /* ─────────────────────────────
+     REDUCED MOTION
+  ───────────────────────────── */
+  @media (prefers-reduced-motion: reduce) {
+    .lumen-mark .sq-you,
+    .lumen-mark .sq-ai,
+    .lumen-mark .inter,
+    .thinking-text {
+      animation: none;
+    }
+    .lumen-mark .inter { opacity: 0.18; transform: scale(1); }
+  }
+</style>
+</head>
+<body>
+
+  <!-- ── 1. Hero mark ── -->
+  <div>
+    <div class="section-label">Hero mark</div>
+    <div class="lumen-mark" style="width:160px;height:160px;" aria-label="Lumen logo">
+      <div class="inter"  style="width:50px;height:50px;top:55px;left:55px;border-radius:6px;"></div>
+      <div class="sq-you" style="width:88px;height:88px;top:15px;left:15px;border-radius:10px;"></div>
+      <div class="sq-ai"  style="width:88px;height:88px;top:55px;left:55px;border-radius:10px;border-width:3px;"></div>
+    </div>
+  </div>
+
+  <!-- ── 2. Wordmark lockups ── -->
+  <div>
+    <div class="section-label">Wordmark lockup</div>
+    <div style="display:flex;flex-direction:column;gap:24px;align-items:flex-start;">
+
+      <div class="lockup">
+        <div class="lumen-mark" style="width:52px;height:52px;" aria-hidden="true">
+          <div class="inter"  style="width:16px;height:16px;top:18px;left:18px;border-radius:2px;"></div>
+          <div class="sq-you" style="width:28px;height:28px;top:5px;left:5px;border-radius:4px;"></div>
+          <div class="sq-ai"  style="width:28px;height:28px;top:18px;left:18px;border-radius:4px;border-width:2px;"></div>
+        </div>
+        <span class="wm-text" style="font-size:34px;">lumen</span>
+      </div>
+
+      <div class="lockup">
+        <div class="lumen-mark" style="width:32px;height:32px;" aria-hidden="true">
+          <div class="inter"  style="width:9px;height:9px;top:11px;left:11px;border-radius:2px;"></div>
+          <div class="sq-you" style="width:17px;height:17px;top:3px;left:3px;border-radius:3px;"></div>
+          <div class="sq-ai"  style="width:17px;height:17px;top:11px;left:11px;border-radius:3px;border-width:2px;"></div>
+        </div>
+        <span class="wm-text" style="font-size:20px;">lumen</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── 3. FAB variants ── -->
+  <div>
+    <div class="section-label">FAB — extension button</div>
+    <div class="row">
+
+      <div class="col">
+        <div class="fab" style="width:64px;height:64px;border-radius:18px;">
+          <div class="lumen-mark" style="width:36px;height:36px;" aria-hidden="true">
+            <div class="inter"  style="width:11px;height:11px;top:12px;left:12px;border-radius:2px;"></div>
+            <div class="sq-you" style="width:20px;height:20px;top:3px;left:3px;border-radius:3px;"></div>
+            <div class="sq-ai"  style="width:20px;height:20px;top:12px;left:12px;border-radius:3px;border-width:2px;"></div>
+          </div>
+        </div>
+        <span class="tag">64px</span>
+      </div>
+
+      <div class="col">
+        <div class="fab" style="width:56px;height:56px;border-radius:16px;">
+          <div class="lumen-mark" style="width:30px;height:30px;" aria-hidden="true">
+            <div class="inter"  style="width:9px;height:9px;top:10px;left:10px;border-radius:1px;"></div>
+            <div class="sq-you" style="width:16px;height:16px;top:3px;left:3px;border-radius:3px;"></div>
+            <div class="sq-ai"  style="width:16px;height:16px;top:10px;left:10px;border-radius:3px;border-width:2px;"></div>
+          </div>
+        </div>
+        <span class="tag">56px</span>
+      </div>
+
+      <div class="col">
+        <div class="fab" style="width:40px;height:40px;border-radius:12px;">
+          <div class="lumen-mark" style="width:22px;height:22px;" aria-hidden="true">
+            <div class="inter"  style="width:7px;height:7px;top:8px;left:8px;border-radius:1px;"></div>
+            <div class="sq-you" style="width:12px;height:12px;top:2px;left:2px;border-radius:2px;"></div>
+            <div class="sq-ai"  style="width:12px;height:12px;top:8px;left:8px;border-radius:2px;border-width:1.5px;"></div>
+          </div>
+        </div>
+        <span class="tag">40px</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── 4. Thinking state ── -->
+  <div>
+    <div class="section-label">Thinking state — extension popup</div>
+    <div class="thinking-row">
+      <div class="lumen-mark" style="width:28px;height:28px;" aria-label="Lumen is thinking">
+        <div class="inter"  style="width:8px;height:8px;top:10px;left:10px;border-radius:1px;"></div>
+        <div class="sq-you" style="width:15px;height:15px;top:2px;left:2px;border-radius:2px;"></div>
+        <div class="sq-ai"  style="width:15px;height:15px;top:10px;left:10px;border-radius:2px;border-width:1.5px;"></div>
+      </div>
+      <span class="thinking-text">thinking…</span>
+    </div>
+  </div>
+
+  <!-- ── 5. Scale strip ── -->
+  <div>
+    <div class="section-label">Scale reference</div>
+    <div class="row" style="gap:28px;">
+
+      <div class="col">
+        <div class="lumen-mark" style="width:96px;height:96px;">
+          <div class="inter"  style="width:29px;height:29px;top:33px;left:33px;border-radius:4px;"></div>
+          <div class="sq-you" style="width:52px;height:52px;top:9px;left:9px;border-radius:6px;"></div>
+          <div class="sq-ai"  style="width:52px;height:52px;top:33px;left:33px;border-radius:6px;border-width:2.5px;"></div>
+        </div>
+        <span class="tag">96px</span>
+      </div>
+
+      <div class="col">
+        <div class="lumen-mark" style="width:64px;height:64px;">
+          <div class="inter"  style="width:19px;height:19px;top:22px;left:22px;border-radius:3px;"></div>
+          <div class="sq-you" style="width:35px;height:35px;top:6px;left:6px;border-radius:4px;"></div>
+          <div class="sq-ai"  style="width:35px;height:35px;top:22px;left:22px;border-radius:4px;border-width:2px;"></div>
+        </div>
+        <span class="tag">64px</span>
+      </div>
+
+      <div class="col">
+        <div class="lumen-mark" style="width:40px;height:40px;">
+          <div class="inter"  style="width:12px;height:12px;top:14px;left:14px;border-radius:2px;"></div>
+          <div class="sq-you" style="width:22px;height:22px;top:4px;left:4px;border-radius:3px;"></div>
+          <div class="sq-ai"  style="width:22px;height:22px;top:14px;left:14px;border-radius:3px;border-width:2px;"></div>
+        </div>
+        <span class="tag">40px</span>
+      </div>
+
+      <div class="col">
+        <div class="lumen-mark" style="width:24px;height:24px;">
+          <div class="inter"  style="width:7px;height:7px;top:9px;left:9px;border-radius:1px;"></div>
+          <div class="sq-you" style="width:13px;height:13px;top:2px;left:2px;border-radius:2px;"></div>
+          <div class="sq-ai"  style="width:13px;height:13px;top:9px;left:9px;border-radius:2px;border-width:1.5px;"></div>
+        </div>
+        <span class="tag">24px</span>
+      </div>
+
+    </div>
+  </div>
+
+</body>
+</html>

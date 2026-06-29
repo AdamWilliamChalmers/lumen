@@ -216,16 +216,94 @@
   box-shadow: 0 4px 16px rgba(26, 24, 37, 0.12), 0 1px 3px rgba(26, 24, 37, 0.08);
 }
 
+/* The mark itself: two offset rounded squares. The solid square is "you"
+   (always dusk); the outline square + glow are the AI, tinted per mode via
+   --lm-ai. --lm-shift drives the converge distance for the active animation. */
 #lumen-root #lumen-fab-mark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: relative;
   width: 24px;
   height: 24px;
-  border-radius: 7px;
-  background: var(--lm-dusk);
   flex-shrink: 0;
-  transition: background var(--lm-transition-base), box-shadow var(--lm-transition-base);
+  --lm-ai: var(--lm-dusk);
+  --lm-shift: 3.5px;
+  --lm-mark-dur: 3.2s;
+  --lm-mark-ease: cubic-bezier(0.37, 0, 0.63, 1);
+}
+#lumen-root #lumen-fab-mark > span {
+  position: absolute;
+  will-change: transform, opacity;
+}
+#lumen-root #lumen-fab-mark .lumen-mark-you {
+  width: 13px;
+  height: 13px;
+  top: 2px;
+  left: 2px;
+  background: var(--lm-dusk);
+  border-radius: 2.5px;
+  transform-origin: center;
+}
+#lumen-root #lumen-fab-mark .lumen-mark-ai {
+  width: 13px;
+  height: 13px;
+  top: 8px;
+  left: 8px;
+  border: 1.5px solid var(--lm-ai);
+  background: transparent;
+  border-radius: 2.5px;
+  transform-origin: center;
+  transition: border-color var(--lm-transition-base);
+}
+#lumen-root #lumen-fab-mark .lumen-mark-inter {
+  width: 7px;
+  height: 7px;
+  top: 8px;
+  left: 8px;
+  border-radius: 1.5px;
+  background: var(--lm-ai);
+  opacity: 0.2;
+  pointer-events: none;
+  transition: background var(--lm-transition-base);
+}
+
+/* One-shot converge/flip pulse when a signal fires. */
+@keyframes lumen-fab-you {
+  0%, 30% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+  50% { transform: translate(var(--lm-shift), var(--lm-shift)) rotate(7deg) scale(0.97); opacity: 1; }
+  58% { transform: translate(var(--lm-shift), var(--lm-shift)) rotate(2deg) scale(1.03); opacity: 0.9; }
+  64% { transform: translate(var(--lm-shift), var(--lm-shift)) rotate(0deg) scaleX(0) scaleY(1.03); opacity: 0.55; }
+  70% { transform: translate(var(--lm-shift), var(--lm-shift)) rotate(-2deg) scale(1.03); opacity: 0.9; }
+  84%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+}
+@keyframes lumen-fab-ai {
+  0%, 30% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+  50% { transform: translate(calc(-1 * var(--lm-shift)), calc(-1 * var(--lm-shift))) rotate(-7deg) scale(0.97); opacity: 1; }
+  58% { transform: translate(calc(-1 * var(--lm-shift)), calc(-1 * var(--lm-shift))) rotate(-2deg) scale(1.03); opacity: 0.9; }
+  64% { transform: translate(calc(-1 * var(--lm-shift)), calc(-1 * var(--lm-shift))) rotate(0deg) scaleX(0) scaleY(1.03); opacity: 0.55; }
+  70% { transform: translate(calc(-1 * var(--lm-shift)), calc(-1 * var(--lm-shift))) rotate(2deg) scale(1.03); opacity: 0.9; }
+  84%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+}
+@keyframes lumen-fab-inter {
+  0%, 28% { opacity: 0; transform: scale(0.5); }
+  52% { opacity: 0.28; transform: scale(1); }
+  64% { opacity: 0.65; transform: scale(1.12); }
+  76% { opacity: 0.18; transform: scale(0.9); }
+  88%, 100% { opacity: 0; transform: scale(0.5); }
+}
+#lumen-root #lumen-fab-mark.lumen-mark-pulse .lumen-mark-you {
+  animation: lumen-fab-you var(--lm-mark-dur) var(--lm-mark-ease) 1;
+}
+#lumen-root #lumen-fab-mark.lumen-mark-pulse .lumen-mark-ai {
+  animation: lumen-fab-ai var(--lm-mark-dur) var(--lm-mark-ease) 1;
+}
+#lumen-root #lumen-fab-mark.lumen-mark-pulse .lumen-mark-inter {
+  animation: lumen-fab-inter var(--lm-mark-dur) var(--lm-mark-ease) 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  #lumen-root #lumen-fab-mark.lumen-mark-pulse .lumen-mark-you,
+  #lumen-root #lumen-fab-mark.lumen-mark-pulse .lumen-mark-ai,
+  #lumen-root #lumen-fab-mark.lumen-mark-pulse .lumen-mark-inter {
+    animation: none;
+  }
 }
 
 #lumen-root #lumen-fab-dot,
@@ -250,7 +328,7 @@
    Ambient = neutral dusk. Active = green (most present). Focus = lavender
    (a goal is live). Ghost = faded + dashed (in-session invisible). */
 #lumen-root #lumen-fab[data-mode="ambient"] #lumen-fab-mark {
-  background: var(--lm-dusk);
+  --lm-ai: var(--lm-dusk);
 }
 
 #lumen-root #lumen-fab[data-mode="active"] {
@@ -262,7 +340,7 @@
   box-shadow: 0 0 0 3px var(--lm-loop-tint), 0 4px 16px rgba(26, 24, 37, 0.14);
 }
 #lumen-root #lumen-fab[data-mode="active"] #lumen-fab-mark {
-  background: var(--lm-loop);
+  --lm-ai: var(--lm-loop);
 }
 
 #lumen-root #lumen-fab[data-mode="focus"] {
@@ -274,7 +352,7 @@
   box-shadow: 0 0 0 3px var(--lm-mismatch-tint), 0 4px 16px rgba(26, 24, 37, 0.14);
 }
 #lumen-root #lumen-fab[data-mode="focus"] #lumen-fab-mark {
-  background: var(--lm-mismatch);
+  --lm-ai: var(--lm-mismatch);
 }
 
 #lumen-root #lumen-fab[data-mode="ghost"] {
@@ -283,6 +361,9 @@
   box-shadow: none;
 }
 #lumen-root #lumen-fab[data-mode="ghost"] #lumen-fab-mark {
+  --lm-ai: var(--lm-ghost);
+}
+#lumen-root #lumen-fab[data-mode="ghost"] #lumen-fab-mark .lumen-mark-you {
   background: var(--lm-ghost);
 }
 
@@ -295,8 +376,11 @@
   box-shadow: none;
 }
 #lumen-root #lumen-fab[data-paused="true"] #lumen-fab-mark {
-  background: var(--lm-haze);
+  --lm-ai: var(--lm-haze);
   box-shadow: none;
+}
+#lumen-root #lumen-fab[data-paused="true"] #lumen-fab-mark .lumen-mark-you {
+  background: var(--lm-haze);
 }
 
 /* ── Intervention cards (nudge — left accent bar, mirror not nanny) ── */

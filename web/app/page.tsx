@@ -1,5 +1,6 @@
 import Link from "next/link";
 import BrandLogo from "@/components/BrandLogo";
+import LumenMark from "@/components/LumenMark";
 
 // Set NEXT_PUBLIC_CHROME_STORE_URL once the extension is published. Until then
 // this falls back to the Chrome Web Store homepage so the CTA is never a dead
@@ -77,6 +78,7 @@ export default function HomePage() {
       {/* Hero */}
       <section className="lm-hero px-6 md:px-10 pt-20 pb-16">
         <div className="max-w-2xl mx-auto text-center">
+          <LumenMark size={72} animate="loop" className="mx-auto mb-8" />
           <div className="lm-eyebrow mb-5">
             <span className="lm-eyebrow-dot" />
             Cognitive mirror for AI users

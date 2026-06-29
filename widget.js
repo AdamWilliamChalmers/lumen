@@ -64,11 +64,9 @@ const LumenWidget = (() => {
     root.innerHTML = `
       <div id="lumen-fab">
         <span id="lumen-fab-mark" aria-hidden="true">
-          <svg width="12" height="12" viewBox="0 0 18 18" fill="none">
-            <circle cx="9" cy="9" r="3" fill="white" opacity="0.95"/>
-            <circle cx="9" cy="9" r="6" stroke="white" stroke-width="1.2" opacity="0.35"/>
-            <circle cx="9" cy="9" r="8.5" stroke="white" stroke-width="0.6" opacity="0.15"/>
-          </svg>
+          <span class="lumen-mark-inter"></span>
+          <span class="lumen-mark-you"></span>
+          <span class="lumen-mark-ai"></span>
         </span>
         <span id="lumen-fab-dot"></span>
         <span id="lumen-fab-score">0</span>
@@ -592,6 +590,21 @@ const LumenWidget = (() => {
     return SIGNAL_COLORS.drift;
   }
 
+  let fabPulseTimer = null;
+  function pulseFabMark() {
+    const mark = document.getElementById("lumen-fab-mark");
+    if (!mark) return;
+    // Restart the one-shot animation even if it's mid-flight.
+    mark.classList.remove("lumen-mark-pulse");
+    void mark.offsetWidth;
+    mark.classList.add("lumen-mark-pulse");
+    window.clearTimeout(fabPulseTimer);
+    fabPulseTimer = window.setTimeout(
+      () => mark.classList.remove("lumen-mark-pulse"),
+      3300
+    );
+  }
+
   function updateBadge() {
     ensureRoot();
     applyFabPosition();
@@ -1045,6 +1058,7 @@ const LumenWidget = (() => {
         evaluation,
         snippet: msg.text.slice(0, 120),
       };
+      if (options.isNewMessage || options.fromJudge) pulseFabMark();
     } else if (options.fromJudge && lastEvaluation?.msgId === msg.id) {
       lastEvaluation = {
         msgId: msg.id,
