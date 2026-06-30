@@ -51,6 +51,9 @@ create table sessions (
   interventions_fired integer default 0,
   interventions_bypassed integer default 0,
   reflections_submitted integer default 0,
+  lumi_mode boolean default false,
+  lumi_rituals_completed integer default 0,
+  lumi_homework_suggested integer default 0,
   signals jsonb,
   feedback jsonb default '[]',
   created_at timestamptz default now()
@@ -117,3 +120,8 @@ alter table users add column if not exists pro boolean default false;
 alter table users add column if not exists pro_activated_at timestamptz;
 alter table users add column if not exists polar_order_id text unique;
 alter table users add column if not exists api_token text unique;
+
+-- Lumi (kids mode) session fields (migration-safe)
+alter table sessions add column if not exists lumi_mode boolean default false;
+alter table sessions add column if not exists lumi_rituals_completed integer default 0;
+alter table sessions add column if not exists lumi_homework_suggested integer default 0;

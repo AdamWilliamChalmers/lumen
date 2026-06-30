@@ -7,7 +7,7 @@
 //
 // To change the production backend, edit DEFAULT_WEB_APP_URL here only.
 const LumenConfig = (() => {
-  const DEFAULT_WEB_APP_URL = "https://lumen.so";
+  const DEFAULT_WEB_APP_URL = "https://lumen-web-vscp.onrender.com";
 
   function normalize(url) {
     return String(url || DEFAULT_WEB_APP_URL).replace(/\/$/, "");
