@@ -66,9 +66,6 @@ export default function HomePage() {
           <a href="#signals" className="text-[13px] text-[var(--lm-slate)] hover:text-[var(--lm-dusk)]">
             Signals
           </a>
-          <Link href="/upgrade" className="text-[13px] text-[var(--lm-slate)] hover:text-[var(--lm-dusk)]">
-            Pro
-          </Link>
           <a href={CHROME_STORE_URL} target="_blank" rel="noopener" className="lm-landing-cta">
             Add to Chrome — free
           </a>
@@ -179,9 +176,6 @@ export default function HomePage() {
               Every signal rolls up into a single, shareable card — your shape, your trends, and one
               question worth sitting with. No raw scores. No leaderboard.
             </p>
-            <p className="text-[13px] text-[var(--lm-haze)]">
-              The weekly card and digest are part of Pro — a one-time unlock, never a subscription.
-            </p>
           </div>
           <WeeklyCardMock />
         </div>
@@ -209,28 +203,6 @@ export default function HomePage() {
 
       <div className="lm-divider max-w-4xl mx-auto" />
 
-      {/* Families */}
-      <section className="max-w-3xl mx-auto px-6 py-20">
-        <h2 className="lm-page-title text-center mb-4">For families</h2>
-        <p className="text-center text-[14px] text-[var(--lm-slate)] mb-4 max-w-xl mx-auto leading-relaxed">
-          Instead of trying to stop your teenager using AI, help them use it well. Your child shares
-          their weekly card with you by choice — never your messages, never surveillance.
-        </p>
-        <p className="text-center text-[12px] text-[var(--lm-haze)] mb-8">
-          Self-awareness lasts. Compliance doesn&apos;t.
-        </p>
-        <div className="flex justify-center gap-3 flex-wrap">
-          <Link href="/signup" className="lm-btn lm-btn-primary">
-            Create account (13+)
-          </Link>
-          <Link href="/family/parent" className="lm-btn">
-            Parent view
-          </Link>
-        </div>
-      </section>
-
-      <div className="lm-divider max-w-4xl mx-auto" />
-
       {/* Community */}
       <section className="max-w-4xl mx-auto px-6 py-20">
         <h2 className="lm-page-title text-center mb-4">Community</h2>
@@ -252,54 +224,11 @@ export default function HomePage() {
         </p>
       </section>
 
-      <div className="lm-divider max-w-4xl mx-auto" />
-
-      {/* Pricing */}
-      <section className="max-w-4xl mx-auto px-6 py-20">
-        <div className="grid md:grid-cols-2 gap-0">
-          <div className="md:pr-10 pb-10 md:pb-0">
-            <h3 className="text-[17px] font-semibold text-[var(--lm-dusk)] mb-6 tracking-[-0.01em]">
-              Free
-            </h3>
-            <ul className="space-y-3 text-[14px] text-[var(--lm-slate)] mb-8">
-              <li>Detects when you shift from thinking with AI to accepting from AI</li>
-              <li>Four signals — each targeting a different metacognitive risk</li>
-              <li>Exemption learning</li>
-              <li>Session badge + popup</li>
-            </ul>
-            <a href={CHROME_STORE_URL} target="_blank" rel="noopener" className="lm-link text-[13px]">
-              Install free →
-            </a>
-            <p className="text-[12px] text-[var(--lm-haze)] mt-2">Chrome Web Store</p>
-          </div>
-          <div
-            className="md:pl-10 pt-10 md:pt-0 md:border-l"
-            style={{ borderColor: "var(--lm-mist)" }}
-          >
-            <h3 className="text-[17px] font-semibold text-[var(--lm-dusk)] mb-1 tracking-[-0.01em]">
-              Pro — <span className="text-[var(--lm-dusk)]">£49 once</span>
-            </h3>
-            <p className="text-[13px] text-[var(--lm-slate)] mb-6">Everything in Free, plus:</p>
-            <ul className="space-y-3 text-[14px] text-[var(--lm-slate)] mb-8">
-              <li>Weekly card + history</li>
-              <li>Shareable card URL</li>
-              <li>Weekly digest email</li>
-              <li>Community feed</li>
-              <li>Self-comparison</li>
-            </ul>
-            <Link href="/upgrade" className="lm-link text-[13px]">
-              Unlock Pro →
-            </Link>
-            <p className="text-[12px] text-[var(--lm-haze)] mt-2">One-time · No subscription</p>
-          </div>
-        </div>
-      </section>
-
       <footer
         className="text-center py-10 text-[12px] text-[var(--lm-haze)]"
         style={{ borderTop: "0.5px solid var(--lm-mist)" }}
       >
-        Free extension · Pro £49 one-time · Ages 13+
+        Free extension · Ages 13+
       </footer>
     </main>
   );
