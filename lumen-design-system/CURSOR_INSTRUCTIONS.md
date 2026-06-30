@@ -135,15 +135,18 @@ body {
 
 ## Logo mark
 
-The Lumen mark is **three concentric rings at decreasing opacity**. A diffusion pattern, a pupil, a ripple. It conveys observation without surveillance.
+The Lumen mark is **two offset rounded squares**. The solid square is "you"; the outline square is the AI; the low-opacity glow where they overlap is Lumen — the space where evaluation happens.
 
 ```html
-<!-- Standard mark (dark bg) — use in popup header, favicon -->
-<svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-  <circle cx="9" cy="9" r="3" fill="white" opacity="0.95"/>
-  <circle cx="9" cy="9" r="6" stroke="white" stroke-width="1" opacity="0.3"/>
-  <circle cx="9" cy="9" r="8.5" stroke="white" stroke-width="0.5" opacity="0.15"/>
-</svg>
+<!-- Standard mark (dark bg) — use in popup header, favicon.
+     Drop the glyph inside the .lumen-mark container; geometry scales to fit. -->
+<div class="lumen-mark lumen-mark--lg">
+  <span class="lumen-mark__glyph" aria-hidden="true">
+    <span class="lm-inter"></span>
+    <span class="lm-you"></span>
+    <span class="lm-ai"></span>
+  </span>
+</div>
 ```
 
 ```html
@@ -154,7 +157,7 @@ The Lumen mark is **three concentric rings at decreasing opacity**. A diffusion 
   border-radius: 9px;
   display: flex; align-items: center; justify-content: center;
 ">
-  <!-- mark SVG above -->
+  <!-- .lumen-mark__glyph above -->
 </div>
 ```
 

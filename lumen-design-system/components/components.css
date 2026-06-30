@@ -19,6 +19,28 @@
 .lumen-mark--lg  { width: 36px; height: 36px; border-radius: 9px; }
 .lumen-mark--xl  { width: 44px; height: 44px; border-radius: 11px; }
 
+/* Two-offset-squares glyph — solid square = you, outline square = the AI,
+   the low-opacity glow is where evaluation happens. Sits inside .lumen-mark. */
+.lumen-mark__glyph {
+  position: relative;
+  width: 58%;
+  height: 58%;
+}
+.lumen-mark__glyph span { position: absolute; display: block; }
+.lumen-mark__glyph .lm-inter {
+  width: 30%; height: 30%; top: 35%; left: 35%;
+  background: var(--lumen-loop); opacity: 0.2; border-radius: 16%;
+}
+.lumen-mark__glyph .lm-you {
+  width: 55%; height: 55%; top: 10%; left: 10%;
+  background: #fff; border-radius: 20%;
+}
+.lumen-mark__glyph .lm-ai {
+  width: 55%; height: 55%; top: 35%; left: 35%;
+  border: 1.5px solid var(--lumen-loop);
+  background: transparent; border-radius: 20%;
+}
+
 .lumen-lockup {
   display: flex;
   align-items: center;
